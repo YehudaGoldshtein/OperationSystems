@@ -25,25 +25,27 @@ forktest(void)
     if(pid < 0)
       break;
     if(pid == 0)
-      exit(0);
+      exit(1, "success");
   }
 
   if(n == N){
     print("fork claimed to work N times!\n");
-    exit(1);
+    exit(1, "failed");
   }
 
   for(; n > 0; n--){
-    if(wait(0) < 0){
+    char exit_msg[32]; // Buffer to store the exit message
+
+    if(wait(0, exit_msg) < 0){
       print("wait stopped early\n");
-      exit(1);
-    }
+      exit(1, "failed");    }
   }
 
-  if(wait(0) != -1){
+  char exit_msg[32]; // Buffer to store the exit message
+
+  if(wait(0, exit_msg) != -1){
     print("wait got too many\n");
-    exit(1);
-  }
+    exit(1, "failed");  }
 
   print("fork test OK\n");
 }
@@ -52,5 +54,5 @@ int
 main(void)
 {
   forktest();
-  exit(0);
+  exit(1, "success");
 }

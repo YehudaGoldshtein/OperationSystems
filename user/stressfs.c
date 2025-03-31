@@ -43,7 +43,8 @@ main(int argc, char *argv[])
     read(fd, data, sizeof(data));
   close(fd);
 
-  wait(0);
+  char exit_msg[32]; // Buffer to store the exit message
+wait(0, exit_msg);
 
-  exit(0);
+  exit(1, "success");
 }

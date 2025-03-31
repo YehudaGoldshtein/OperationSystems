@@ -8,10 +8,10 @@ main(int argc, char *argv[])
 
     printf("memsize: %d\n", memsize());
     //use maloc to allocate memory of size 20k bytes
-    char *p = malloc(20*1024);
+    char *p = malloc(20*1000);
     printf("memsize: %d\n", memsize());
     //free the allocated memory
     free(p);
     printf("memsize: %d\n", memsize());
-    exit(0);
+    exit(1, "success");
 }

@@ -64,9 +64,11 @@ runcmd(struct cmd *cmd)
   struct listcmd *lcmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
+  char exit_msg[32]; // Buffer to store the exit message
+
 
   if(cmd == 0)
-    exit(1);
+    exit(1, "failed");
 
   switch(cmd->type){
   default:
@@ -75,7 +77,7 @@ runcmd(struct cmd *cmd)
   case EXEC:
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
-      exit(1);
+      exit(1, "failed");
     exec(ecmd->argv[0], ecmd->argv);
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
@@ -85,7 +87,7 @@ runcmd(struct cmd *cmd)
     close(rcmd->fd);
     if(open(rcmd->file, rcmd->mode) < 0){
       fprintf(2, "open %s failed\n", rcmd->file);
-      exit(1);
+      exit(1, "failed");
     }
     runcmd(rcmd->cmd);
     break;
@@ -94,7 +96,7 @@ runcmd(struct cmd *cmd)
     lcmd = (struct listcmd*)cmd;
     if(fork1() == 0)
       runcmd(lcmd->left);
-    wait(0);
+wait(0, exit_msg);
     runcmd(lcmd->right);
     break;
 
@@ -118,8 +120,7 @@ runcmd(struct cmd *cmd)
     }
     close(p[0]);
     close(p[1]);
-    wait(0);
-    wait(0);
+    wait(0, exit_msg);
     break;
 
   case BACK:
@@ -128,7 +129,7 @@ runcmd(struct cmd *cmd)
       runcmd(bcmd->cmd);
     break;
   }
-  exit(0);
+  exit(1, "success");
 }
 
 int
@@ -167,16 +168,17 @@ main(void)
     }
     if(fork1() == 0)
       runcmd(parsecmd(buf));
-    wait(0);
+    char exit_msg[32]; // Buffer to store the exit message
+wait(0, exit_msg);
   }
-  exit(0);
+  exit(1, "success");
 }
 
 void
 panic(char *s)
 {
   fprintf(2, "%s\n", s);
-  exit(1);
+  exit(1, "failed");
 }
 
 int

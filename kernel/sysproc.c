@@ -9,8 +9,11 @@
 uint64
 sys_exit(void)
 {
+  //Modify the exit system call to receive an additional argument oftype char* and save it in exit_msg.
   int n;
   argint(0, &n);
+  //retrieve the exit message from the stack
+  argstr(1, myproc()->exit_msg, 32);
   exit(n);
   return 0;  // not reached
 }
@@ -31,8 +34,23 @@ uint64
 sys_wait(void)
 {
   uint64 p;
+  //another var for the exit message
+  uint64 
+  exit_msg_addr; // User-space pointer for the exit message
   argaddr(0, &p);
-  return wait(p);
+  argaddr(1, &exit_msg_addr);
+  char exit_msg[32];
+  
+  int pid = wait(p, exit_msg);
+
+    // Copy the exit message to user space
+    if (pid >= 0 && exit_msg_addr != 0) {
+        if (copyout(myproc()->pagetable, exit_msg_addr, exit_msg, strlen(exit_msg) + 1) < 0) {
+            return -1;
+        }
+    }
+
+    return pid;
 }
 
 uint64
