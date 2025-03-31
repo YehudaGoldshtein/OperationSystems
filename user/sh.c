@@ -97,6 +97,9 @@ runcmd(struct cmd *cmd)
     if(fork1() == 0)
       runcmd(lcmd->left);
 wait(0, exit_msg);
+fprintf(2, exit_msg);
+fprintf(2, "\n");
+
     runcmd(lcmd->right);
     break;
 
@@ -121,6 +124,8 @@ wait(0, exit_msg);
     close(p[0]);
     close(p[1]);
     wait(0, exit_msg);
+    fprintf(2, exit_msg);
+      fprintf(2, "\n");
     break;
 
   case BACK:
@@ -169,7 +174,9 @@ main(void)
     if(fork1() == 0)
       runcmd(parsecmd(buf));
     char exit_msg[32]; // Buffer to store the exit message
-wait(0, exit_msg);
+  wait(0, exit_msg);
+  fprintf(2, exit_msg);
+      fprintf(2, "\n");
   }
   exit(1, "success");
 }
