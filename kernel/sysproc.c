@@ -112,3 +112,22 @@ sys_memsize(void)
 {
   return myproc()->sz;
 }
+uint64
+sys_forkn(void)
+{
+  int n;
+  uint64 pids;
+  argint(0, &n);
+  argaddr(1, &pids);
+  return forkn(n, pids);
+}
+
+uint64
+sys_waitall(void)
+{
+  uint64 n_ptr, statuses_ptr;
+  argaddr(0, &n_ptr);
+  argaddr(1, &statuses_ptr);
+  // No need to check n_ptr < 0 (it's unsigned), but ensure user pointers are valid in waitall
+  return waitall(n_ptr, statuses_ptr);
+}

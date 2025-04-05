@@ -324,6 +324,81 @@ fork(void)
 
   return pid;
 }
+int
+forkn(int n, uint64 pids_user)
+{
+  struct proc *curproc = myproc();
+  struct proc *children[16];
+  int child_pids[16];
+
+  if(n <= 0 || n > 16)
+    return -1;
+
+  for(int i = 0; i < n; i++){
+    struct proc *np;
+    if((np = allocproc()) == 0){
+      // Allocation failed, clean up previous children
+      for(int j = 0; j < i; j++){
+        acquire(&children[j]->lock);
+        children[j]->state = UNUSED;
+        release(&children[j]->lock);
+      }
+      return -1;
+    }
+
+    // Copy user memory from parent to child.
+    if(uvmcopy(curproc->pagetable, np->pagetable, curproc->sz) < 0){
+      freeproc(np);
+      for(int j = 0; j < i; j++){
+        acquire(&children[j]->lock);
+        children[j]->state = UNUSED;
+        release(&children[j]->lock);
+      }
+      return -1;
+    }
+    np->sz = curproc->sz;
+
+    // Copy trapframe registers.
+    *(np->trapframe) = *(curproc->trapframe);
+
+    // Set return value of forkn in child processes to their child index (1-based).
+    np->trapframe->a0 = i + 1;
+
+    // Copy open file descriptors.
+    for(int fd = 0; fd < NOFILE; fd++)
+      if(curproc->ofile[fd])
+        np->ofile[fd] = filedup(curproc->ofile[fd]);
+
+    // Copy working directory.
+    np->cwd = idup(curproc->cwd);
+
+    safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+    child_pids[i] = np->pid;
+    children[i] = np;
+
+    release(&np->lock);
+  }
+
+  // Now, set parent and runnable states exactly as original fork.
+  acquire(&wait_lock);
+  for(int i = 0; i < n; i++){
+    acquire(&children[i]->lock);
+    children[i]->parent = curproc;
+    children[i]->state = RUNNABLE;
+    release(&children[i]->lock);
+  }
+  release(&wait_lock);
+
+  // Copy PIDs to user-space array.
+  if(copyout(curproc->pagetable, pids_user, (char *)child_pids, n * sizeof(int)) < 0)
+    return -1;
+
+  // Parent process returns 0.
+  return 0;
+}
+
+
 
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
@@ -685,3 +760,66 @@ procdump(void)
     printf("\n");
   }
 }
+
+// waitall(int *n, int *statuses)
+
+
+int
+waitall(uint64 n_ptr, uint64 statuses_ptr)
+{
+  struct proc *p;
+  struct proc *curproc = myproc();
+  int total, zombies, i;
+  int exit_statuses[NPROC];
+
+  acquire(&wait_lock);
+  for (;;) {
+    total = 0;
+    zombies = 0;
+    // Count children and zombies
+    for (p = proc; p < &proc[NPROC]; p++) {
+      if (p->parent != curproc)
+        continue;
+      total++;
+      acquire(&p->lock);
+      if (p->state == ZOMBIE)
+        zombies++;
+      release(&p->lock);
+    }
+
+    if (total == 0) {
+      // No children, copy zero to user
+      int zero = 0;
+      release(&wait_lock);
+      if(copyout(curproc->pagetable, n_ptr, (char *)&zero, sizeof(zero)) < 0)
+        return -1;
+      return 0;
+    }
+
+    if (zombies < total)
+      sleep(curproc, &wait_lock);
+    else
+      break;  // All zombies
+  }
+
+  i = 0;
+  for (p = proc; p < &proc[NPROC]; p++) {
+    if (p->parent != curproc)
+      continue;
+    acquire(&p->lock);
+    exit_statuses[i] = p->xstate;
+    release(&p->lock);
+    freeproc(p);
+    i++;
+  }
+  release(&wait_lock);
+
+  // Safely copy the results back to user-space
+  if (copyout(curproc->pagetable, n_ptr, (char *)&i, sizeof(i)) < 0)
+    return -1;
+  if (copyout(curproc->pagetable, statuses_ptr, (char *)exit_statuses, i * sizeof(int)) < 0)
+    return -1;
+
+  return 0;
+}
+
